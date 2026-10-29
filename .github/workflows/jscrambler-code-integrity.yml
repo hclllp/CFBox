@@ -14,6 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: true
 
       - name: Setup Node.js
@@ -29,29 +30,29 @@ jobs:
             echo "Source file not found: CFBox明文版.js"
             exit 1
           fi
-          echo "Found source file: CFBox明文版.js"
+          echo "Using source file: CFBox明文版.js"
 
       - name: Install obfuscator
         shell: bash
         run: |
           set -euo pipefail
-          npm init -y >/dev/null 2>&1 || true
-          npm install javascript-obfuscator
+          if [ ! -f package.json ]; then
+            npm init -y >/dev/null 2>&1 || true
+          fi
+          npm install --save-dev javascript-obfuscator
 
       - name: Obfuscate JS
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist
-          npx javascript-obfuscator \
-            "CFBox明文版.js" \
+          npx javascript-obfuscator "CFBox明文版.js" \
             --output "CFBox混淆版_self.js" \
             --compact true \
             --self-defending true \
             --control-flow-flattening true \
             --dead-code-injection true \
             --string-array true \
-            --string-array-encoding 'base64' \
+            --string-array-encoding "base64" \
             --string-array-threshold 0.75 \
             --unicode-escape-sequence false \
             --simplify true \
@@ -59,7 +60,6 @@ jobs:
             --rename-globals true \
             --rename-private true
 
-          echo "Generated output:"
           ls -l "CFBox混淆版_self.js"
 
       - name: Commit generated obfuscated file
@@ -72,9 +72,9 @@ jobs:
           git add "CFBox混淆版_self.js"
 
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "No obfuscated output changes detected."
             exit 0
           fi
 
           git commit -m "Add obfuscated CFBox JS"
-          git push
+          git push origin HEAD
