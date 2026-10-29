@@ -56,8 +56,7 @@ jobs:
             --string-array-threshold 0.75 \
             --unicode-escape-sequence false \
             --simplify true \
-            --rename-globals true \
-            --rename-private true
+            --rename-globals true 
 
           ls -l "CFBox混淆版_self.js"
 
