@@ -1,71 +1,80 @@
-name: Jscrambler Code Integrity
+name: Obfuscate JS Without Secrets
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
+  obfuscate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Check if this is an npm project
-        id: node_project
+      - name: Validate source file exists
         shell: bash
         run: |
-          if [ -f package.json ]; then
-            echo "has_package_json=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_package_json=false" >> "$GITHUB_OUTPUT"
-            echo "No package.json found in this repository. Skipping npm install/build steps."
+          set -euo pipefail
+          if [ ! -f "CFBox明文版.js" ]; then
+            echo "Source file not found: CFBox明文版.js"
+            exit 1
           fi
+          echo "Found source file: CFBox明文版.js"
 
-      - name: Install dependencies
-        if: steps.node_project.outputs.has_package_json == 'true'
-        run: npm ci
-
-      - name: Build app
-        if: steps.node_project.outputs.has_package_json == 'true'
-        run: npm run build
-
-      - name: Prepare JavaScript files for protection
+      - name: Install obfuscator
         shell: bash
         run: |
-          mkdir -p dist
-          shopt -s nullglob
-          for f in *.js *.mjs; do
-            cp "$f" dist/
-          done
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1 || true
+          npm install javascript-obfuscator
 
-          if [ -z "$(ls -A dist 2>/dev/null)" ]; then
-            echo "No JavaScript source files were found to protect."
+      - name: Obfuscate JS
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          npx javascript-obfuscator \
+            "CFBox明文版.js" \
+            --output "CFBox混淆版_self.js" \
+            --compact true \
+            --self-defending true \
+            --control-flow-flattening true \
+            --dead-code-injection true \
+            --string-array true \
+            --string-array-encoding 'base64' \
+            --string-array-threshold 0.75 \
+            --unicode-escape-sequence false \
+            --simplify true \
+            --shuffle true \
+            --rename-globals true \
+            --rename-private true
+
+          echo "Generated output:"
+          ls -l "CFBox混淆版_self.js"
+
+      - name: Commit generated obfuscated file
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "CFBox混淆版_self.js"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
             exit 0
           fi
 
-          echo "Prepared files for Jscrambler:"
-          ls -R dist
-
-      - name: Jscrambler Code Integrity
-        if: ${{ hashFiles('jscrambler.json') != '' && hashFiles('dist/**') != '' }}
-        id: jscrambler
-        uses: jscrambler/code-integrity-actions/protect@ab65962a2ecffcc362b75a997e24a181d0bde5fb
-        with:
-          application-id: ${{ secrets.JSCRAMBLER_APPLICATION_ID }}
-          secret-key: ${{ secrets.JSCRAMBLER_SECRET_KEY }}
-          access-key: ${{ secrets.JSCRAMBLER_ACCESS_KEY }}
-          jscrambler-config-path: jscrambler.json
-          files-src: |
-            dist/**/*
-          files-dest: .
+          git commit -m "Add obfuscated CFBox JS"
+          git push
