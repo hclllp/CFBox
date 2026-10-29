@@ -56,7 +56,6 @@ jobs:
             --string-array-threshold 0.75 \
             --unicode-escape-sequence false \
             --simplify true \
-            --shuffle true \
             --rename-globals true \
             --rename-private true
 
